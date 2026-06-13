@@ -1,12 +1,16 @@
 # Alertmanager to SMSEagle gateway
 
-
-
-# build:
+build:
+```
 docker build -t smsbridge .
+```
 
-# run (see `env` for example env vars):
+run (see `env` for example env vars):
+```
 docker run -p 9095:9095 --env-file env smsbridge
+```
 
-# test:
+test:
+```
 ./send-alert.sh
+```
