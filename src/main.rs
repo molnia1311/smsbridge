@@ -2,12 +2,27 @@ use std::io::Read;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+use ureq::tls::TlsConfig;
 
 fn main() {
     let base  = std::env::var("SMS_EAGLE_URL").unwrap();
     let token = std::env::var("SMS_EAGLE_TOKEN").unwrap();
     let to    = std::env::var("SMS_EAGLE_TO").unwrap();
     let port  = std::env::var("PORT").unwrap_or_else(|_| "9095".into());
+
+    let agent = if std::env::var("SMS_EAGLE_INSECURE").unwrap_or_default() == "true" {
+        println!("TLS verification disabled (SMS_EAGLE_INSECURE=true)");
+        ureq::Agent::config_builder()
+            .tls_config(
+                TlsConfig::builder()
+                    .disable_verification(true)
+                    .build(),
+            )
+            .build()
+            .new_agent()
+    } else {
+        ureq::Agent::new_with_defaults()
+    };
 
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -43,7 +58,7 @@ fn main() {
                     a["labels"]["alertname"].as_str().unwrap_or(""),
                     a["annotations"]["summary"].as_str().unwrap_or(""));
                 print!("   sms -> {text}");
-                match ureq::get(&format!("{base}/http_api/send_sms"))
+                match agent.get(&format!("{base}/http_api/send_sms"))
                     .query("access_token", &token)
                     .query("to", &to)
                     .query("message", &text)

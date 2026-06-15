@@ -1,9 +1,10 @@
 [package]
 name = "smsbridge"
 version = "0.1.0"
+edition = "2021"
 
 [dependencies]
 tiny_http  = "0.12"
-ureq       = "2"
+ureq       = { version = "3", features = ["rustls"] }
 serde_json = "1"
 ctrlc      = "3"
