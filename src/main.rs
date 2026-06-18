@@ -54,15 +54,22 @@ fn main() {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
             let alerts = v["alerts"].as_array().cloned().unwrap_or_default();
             if !alerts.is_empty() {
+                let env = v["commonLabels"]["env"].as_str().unwrap_or("");
                 let status = alerts[0]["status"].as_str().unwrap_or("").to_uppercase();
                 let alertname = alerts[0]["labels"]["alertname"].as_str().unwrap_or("");
                 let summary = alerts[0]["annotations"]["summary"].as_str().unwrap_or("");
                 let count = alerts.len();
 
-                let text = if count > 1 {
-                    format!("[{}] {} ({}x): {}", status, alertname, count, summary)
+                let head = if env.is_empty() {
+                    format!("{status} {alertname}")
                 } else {
-                    format!("[{}] {}: {}", status, alertname, summary)
+                    format!("{env} {status} {alertname}")
+                };
+
+                let text = if count > 1 {
+                    format!("{head} ({count}x): {summary}")
+                } else {
+                    format!("{head}: {summary}")
                 };
 
                 print!("   sms -> {text}");
