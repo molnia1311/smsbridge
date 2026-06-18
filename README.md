@@ -10,7 +10,7 @@ run (see `env` for example env vars):
 docker run -p 9095:9095 --env-file env smsbridge
 ```
 
-test:
+tests:
 ```
-./send-alert.sh
+./tests/send-alert.sh
 ```
