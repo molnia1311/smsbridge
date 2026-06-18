@@ -4,6 +4,54 @@ use std::sync::Arc;
 use std::time::Duration;
 use ureq::tls::TlsConfig;
 
+fn format_text(v: &serde_json::Value) -> Option<String> {
+    let alerts = v["alerts"].as_array()?;
+    if alerts.is_empty() {
+        return None;
+    }
+
+    let env = v["commonLabels"]["env"].as_str().unwrap_or("");
+    let status = alerts[0]["status"].as_str().unwrap_or("").to_uppercase();
+    let alertname = alerts[0]["labels"]["alertname"].as_str().unwrap_or("");
+    let summary = alerts[0]["annotations"]["summary"].as_str().unwrap_or("");
+    let count = alerts.len();
+
+    let mut instances: Vec<String> = Vec::new();
+    for a in alerts {
+        let inst = a["labels"]["instance"].as_str().unwrap_or("").to_string();
+        if !inst.is_empty() && !instances.contains(&inst) {
+            instances.push(inst);
+        }
+    }
+
+    let head = if env.is_empty() {
+        format!("{status} {alertname}")
+    } else {
+        format!("{env} {status} {alertname}")
+    };
+
+    let text = if count == 1 {
+        if let Some(inst) = instances.first() {
+            format!("{head} {inst}: {summary}")
+        } else {
+            format!("{head}: {summary}")
+        }
+    } else if instances.is_empty() {
+        format!("{head} {count}x")
+    } else {
+        let shown: Vec<&str> = instances.iter().take(3).map(|s| s.as_str()).collect();
+        let shown = shown.join(",");
+        let rest = instances.len().saturating_sub(3);
+        if rest > 0 {
+            format!("{head} {count}x {shown} +{rest} more")
+        } else {
+            format!("{head} {count}x {shown}")
+        }
+    };
+
+    Some(text)
+}
+
 fn main() {
     let base  = std::env::var("SMS_EAGLE_URL").unwrap();
     let token = std::env::var("SMS_EAGLE_TOKEN").unwrap();
@@ -52,26 +100,7 @@ fn main() {
         println!("   body: {body}");
 
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
-            let alerts = v["alerts"].as_array().cloned().unwrap_or_default();
-            if !alerts.is_empty() {
-                let env = v["commonLabels"]["env"].as_str().unwrap_or("");
-                let status = alerts[0]["status"].as_str().unwrap_or("").to_uppercase();
-                let alertname = alerts[0]["labels"]["alertname"].as_str().unwrap_or("");
-                let summary = alerts[0]["annotations"]["summary"].as_str().unwrap_or("");
-                let count = alerts.len();
-
-                let head = if env.is_empty() {
-                    format!("{status} {alertname}")
-                } else {
-                    format!("{env} {status} {alertname}")
-                };
-
-                let text = if count > 1 {
-                    format!("{head} ({count}x): {summary}")
-                } else {
-                    format!("{head}: {summary}")
-                };
-
+            if let Some(text) = format_text(&v) {
                 print!("   sms -> {text}");
                 match agent.get(&format!("{base}/http_api/send_sms"))
                     .query("access_token", &token)
